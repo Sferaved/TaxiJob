@@ -1,7 +1,12 @@
 package com.example.taxijob.application;
 
 import android.annotation.SuppressLint;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -21,6 +26,7 @@ import android.widget.Toast;
 
 import com.example.taxijob.R;
 import com.example.taxijob.about.AboutActivity;
+import com.example.taxijob.start.StartActivity;
 
 public class MainActivity extends AppCompatActivity {
     private Intent intent;
@@ -32,8 +38,13 @@ public class MainActivity extends AppCompatActivity {
     private EditText phoneNumber;
     private String city = "Київ";
     private Button startBtn;
+    private boolean valid;
 
     private String addressAdmin = "taxi.easy.ua@gmail.com";
+    private final int NOTIFICATION_ID = 127;
+    private final String TAG = "TAG";
+    private EmailValidator emailValidator;
+    private PhoneValidator phoneValidator;
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -46,8 +57,16 @@ public class MainActivity extends AppCompatActivity {
         email =  findViewById(R.id.email);
         phoneNumber =  findViewById(R.id.phone_number);
 
+        emailValidator = new EmailValidator();
+        phoneValidator = new PhoneValidator();
+
         startBtn = findViewById(R.id.sendEmail);
-        startBtn.setOnClickListener(view -> sendEmail());
+        startBtn.setOnClickListener(view -> {
+                    if(isValid()){
+                        sendEmail();
+                    }
+                }
+                );
 
         Spinner spinnerCities = findViewById(R.id.list_cities);
         arrayCities = cities();
@@ -120,7 +139,8 @@ public class MainActivity extends AppCompatActivity {
         Log.i("Send email", "");
 
         String subject = "Лист від водія-кандидата";
-        String emailText = "Город: " + city
+        String emailText = "Прошу розглянути мою кандидатуру для роботи водієм у Вашій службі таксі." +
+                "\nГород: " + city
                 + "\nІм\'я:  " + firstName.getText().toString()
                 + "\nПрізвище: " + secondName.getText().toString()
                 + "\nEmail: " + email.getText().toString()
@@ -139,42 +159,79 @@ public class MainActivity extends AppCompatActivity {
         emailIntent.putExtra(Intent.EXTRA_TEXT, emailText);
 
         try {
-            startActivity(Intent.createChooser(emailIntent, "Send mail..."));
-            finish();
-//            Toast.makeText(this, "Повідомлення надіслано адміністратору. Очікуйте відповіді на електронну пошту або дзвінок.", Toast.LENGTH_LONG).show();
-//      andrey      intent = new Intent(this, StartActivity.class);
-//            startActivity(intent);
+            startActivity(Intent.createChooser(emailIntent, "Надислати лист..."));
         } catch (android.content.ActivityNotFoundException ex) {
             Toast.makeText(MainActivity.this, "There is no email client installed.", Toast.LENGTH_SHORT).show();
         }
     }
 
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        showNotification();
+    }
 
+    public void showNotification() {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        Notification.Builder builder = new Notification.Builder(getApplicationContext());
 
-//    private void sendEmail(String subject, String emailText) {
-//        final Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
-//
-//        emailIntent.setType("plain/text");
-//        // Кому
-//        emailIntent.putExtra(android.content.Intent.EXTRA_EMAIL, new String[] { addressAdmin });
-//        // Зачем
-//        emailIntent.putExtra(android.content.Intent.EXTRA_SUBJECT, subject);
-//        // О чём
-//        emailIntent.putExtra(android.content.Intent.EXTRA_TEXT, emailText);
-////        // С чем
-////        emailIntent.putExtra(
-////                android.content.Intent.EXTRA_STREAM,
-////                Uri.parse("file://"
-////                        + Environment.getExternalStorageDirectory()
-////                        + "/Клипы/SOTY_ATHD.mp4"));
-//
-//        try {
-//            startActivity(Intent.createChooser(emailIntent, "Send mail..."));
-//            finish();
-//            Log.i("TAG", "Finished sending email...");
-//        } catch (android.content.ActivityNotFoundException ex) {
-//            Toast.makeText(MainActivity.this, "There is no email client installed.", Toast.LENGTH_SHORT).show();
-//        }
-//    }
+        Intent intent = new Intent(getApplicationContext(), StartActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
+
+        builder.setContentIntent(pendingIntent)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher_foreground))
+                .setTicker("New notification")
+                .setWhen(System.currentTimeMillis())
+                .setAutoCancel(true)
+                .setContentTitle("Повідомлення надіслано адміністратору.")
+                .setContentText("Очікуйте відповіді на електронну пошту або дзвінок.");
+
+        Notification notification = builder.build();
+
+        long[] vibrate = {1500,1000, 1500, 1000};
+        notification.vibrate = vibrate;
+        notification.flags = notification.flags | Notification.FLAG_INSISTENT;
+        manager.notify(NOTIFICATION_ID, notification);
+
+    }
+
+    private boolean isValid() {
+        StringBuilder messageError = new StringBuilder("Введіть ");
+        valid = true;
+        if (firstName.getText().toString().equals("")) {
+            valid = false;
+            messageError.append("ім'я");
+        }
+         if (secondName.getText().toString().equals("")){
+             valid = false;
+             messageError.append(" прізвище");
+         }
+         if (email.getText().toString().equals("")) {
+             valid = false;
+             messageError.append(" електронну пошту");
+         } else {
+             if(!emailValidator.validate(email.getText().toString())){
+                 valid = false;
+                 Toast.makeText(this, "Перевірте формат написання електронної пошти: " + email.getText().toString(), Toast.LENGTH_SHORT).show();
+             };
+         }
+         
+         if (phoneNumber.getText().toString().equals("")) {
+             valid = false;
+             messageError.append(" номер телефону");
+         } else {
+             if(!phoneValidator.validate(phoneNumber.getText().toString())){
+                 valid = false;
+                 Toast.makeText(this, "Перевірте формат вводу номера телефона: " + phoneNumber.getText().toString(), Toast.LENGTH_SHORT).show();
+             }
+         };
+
+         if(!messageError.toString().equals("Введіть ")) {
+             Toast.makeText(this, messageError, Toast.LENGTH_SHORT).show();
+         }
+
+         return valid;
+    }
 
 }
